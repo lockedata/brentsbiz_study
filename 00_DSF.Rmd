@@ -1,0 +1,84 @@
+---
+title: "Data Science Fundamentals"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+> Data science is 80% data cleaning, 20% moaning about data cleaning
+
+## Data science, and other words
+- **Statistics** is concerned with the confidence with which we can assert predictions
+- **Machine Learning** is the act of a computer using an algorithm to produce an answer you didn't explicitly code
+- **Business Intelligence** is the provision of data and repeat-use analytical artifacts like dashboards to facilitate decision making
+- **Data Mining** is the use of business data to uncover patterns in data
+- **Artificial Intelligence** is the training of computers to emulate cognitive tasks
+- **Data Science** is the application of many techniques, on business data, to support business strategy 
+
+![](https://content.screencast.com/users/StephLocke/folders/Snagit/media/0022f7ce-4c76-4b55-a370-e4a1caf6a07f/05.08.2018-13.39.png)
+
+## What kind of challenges does data science solve?
+Data science helps organisations tackle business challenges. These often fall into the following categories:
+
+- Increase customer profitability
+- Increase quantity of customers
+- Reduce overheads
+
+
+Data science answers questions like:
+
+- Who is going to cancel their subscription?
+- Which of these transactions are fraudulent?
+- What signals tell me my machines are going to break down?
+- Where is there a high risk of drought?
+- What shelves need stocking?
+- How much food do we need to order?
+- Which companies are colluding?
+- When do I need extra capacity on my IT estate?
+- Who will win the NFL?
+- What risk is there to my oil rigs due to climate change?
+- Does this patient need a biopsy?
+- What groups of customers do I have?
+- What do these documents talk about?
+- What films do our customers want to watch?
+
+## What does a data scientist do?
+A data scientist tackles business challenges by applying various techniques from basic solutions through to machine learning to provide something actionable that the impacts a business challenge. It doesn't always have to be complex, or fancy!
+
+A data scientist will usually work on projects where the end-goal is implementing some system that improves the business' performance in some area. 
+
+### What does a modeling project look like?
+
+They'll start off understanding the business processes and data associated with the challenge, and translate the business question/challenge into something that uses available data to answer/solve.
+
+Once they know there is at least some supporting data they can use to solve the problem, they'll usually hunt for more data as the more facets/dimensions/contexts we have, the better. This is often business data or externally gather data like MOSAIC, government statistics, and so on.
+
+After going through a data gathering exercise, they'll usually explore the data to make sure it's of a reasonable quality for answering the question. They'll also explore for trends, issues, and anomalies in the data. Sometimes, based on this exploratory work the project can either end or need to iterate again when particular issues have been resolved. If the data is too poor, or insufficient, then an active data collection phase may need to be kicked off. If there are obvious trends in the data that suffice to solve the problem, or at least initially, then the project may not need to continue.
+
+If the process continues, the data scientist will then combine the different datasets into one big dataset, usually with **one observation per row**, so we might have one row per customer, per transaction, etc. This will contain the columns or **features** or **variables** from the different datasets. Then the data scientist will usually generate composite or derived columns that can provide more information. A common set of features are past values -- almost all prediction capabilities assume the future looks like the past so these past values really help!
+
+Once they have a nice flat aka denormalised dataset, they'll split the data up into chunks or samples. The most common chucks of data they'll make is one set for building some sort of predictive model i.e. **trainng** the model  and one set to **test** their model on.
+
+After splitting up the data, they'll perform tasks on the training data that will help the model generate better quality predictions. This might be removing variables that confuse things or don't add value, transforming numeric columns, or handling missing values.
+
+With a finally cleaned, prepped training dataset with columns from diverse areas of the problem, the data scientist will finally do the machine learning stuff. They'll build one or more models using their dataset, usually using different **algorithms**.
+
+They'll then predict values for their test data, and compare the actual values that occurred against these predictions. Using some evaluation criteria, they'll then decide which model performs the best subject to other limiting factors like implementation options. If none of the models performed sufficiently well, then they'll often iterate through all or part of the process performed so far.
+
+If a model meets requirements, the data scientist will either put the model into production themselves (if given the tools and permissions to do so!) or they'll work with IT to implement the model. During this phase, they'll usually make sure the predictions are being logged and that they can monitor the results. 
+
+<img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/CRISP-DM_Process_Diagram.png" width=100%></img>
+
+### What other duties will they have?
+Once a model is in production, a data scientist's job isn't done. There needs to be monitoring against key business criteria to ensure the model works as expected. Things change over time, so models will often need to be updated based on the latest data. They need to work with others to communicate results and impact of their work, and ensure that high quality data is getting captured for future projects.
+
+### Is this really all one person?
+Sometimes! Depending on the size of the organisation and the number of data-savvy people in the company, it could be just one data scientist. However, most data scientists have an area or strength like developing models and they'll benefit from other people (whether data scientists or different people like data analysts) doing some of the work. I prefer to think of data science as a team sport.
+
+### Is a data scientist a mathemagician?
+A data scientist needs to be comfortable with concepts like basic algebra, probability, distributions, and matrix maths definitely helps. If you're not a numbers person you can still be a data scientist but you might have to work harder at some areas. Unless you're developing new algorithms, being OK at maths and having a strong ability to think critically about your data go a long way.
+
+## What tech is used for data science?
+Data science involves a lot of data, so databases, Excel, APIs and non-relational data stores are almost always involved in a data science project. Languages like R and Python are common, with the use of C++, JavaScript, Scala, and Julia also making appearances.

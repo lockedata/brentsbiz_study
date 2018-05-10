@@ -1,0 +1,167 @@
+---
+title: "Sampling and standardisation"
+output: 
+  html_notebook: 
+    toc: yes
+    toc_depth: 1
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(tidyverse)
+library(dtplyr)
+brent_dt<-data.table::fread("../outputs/finaldataset.csv")
+brent_dt[, purchase:=NULL]
+brent_dt %>% 
+  as_tibble() %>% 
+  set_tidy_names(syntactic = TRUE) %>% 
+  mutate_if(is_logical, factor, levels=c("FALSE","TRUE")) %>% 
+  mutate_if(is_character, as_factor) %>% 
+  mutate_if(~is.factor(.)&n_distinct(.)!=2, fct_infreq) ->
+  brent_dt
+
+
+```
+
+# Samples
+```{r}
+library(modelr)
+library(recipes)
+```
+
+## Basic samples
+
+Perform a basic 70:30 split
+
+```{r}
+set.seed(20180409)
+brent_dt %>% 
+  modelr::resample_partition(c(train=0.7,test=0.3)) ->
+  splits
+
+splits %>% 
+  pluck("train") %>% 
+  as_tibble()->
+  train_raw
+
+splits %>% 
+  pluck("test") %>% 
+  as_tibble()->
+  test_raw
+```
+
+Start our recipe for processing our data
+
+```{r}
+train_raw %>% 
+  recipe( .)  %>%
+  add_role(any_purchase, new_role = "outcome") %>% 
+  add_role(email_user_id, new_role = "id") %>% 
+  add_role(everything(),-any_purchase, -email_user_id, new_role = "predictor")->
+  starter_recipe
+
+starter_recipe
+```
+
+Perform some steps to remove columns and fill in missing country
+```{r}
+starter_recipe %>% 
+  step_rm(has_role("id")) %>% 
+  step_corr(all_numeric())  %>% 
+  step_bagimpute(country_code, seed_val = 42) %>% 
+  step_other(country_code) %>%  
+  step_zv(all_predictors())  %>% 
+  prep(train_raw) ->
+  filter_recipe
+
+filter_recipe
+```
+
+```{r}
+train_b <- bake(filter_recipe, newdata = train_raw) 
+test_b  <- bake(filter_recipe, newdata = test_raw) 
+
+train_b
+```
+
+
+
+Perform numeric standardisation steps.
+
+```{r}
+train_b %>% 
+  recipe(any_purchase~.) %>% 
+  step_center(all_numeric()) %>% 
+  step_scale(all_numeric()) %>% 
+  prep(train_b) ->
+  standardise_recipe
+
+standardise_recipe
+```
+
+
+```{r}
+train_std <- bake(standardise_recipe, train_b) 
+test_std  <- bake(standardise_recipe, test_b) 
+
+train_std
+```
+
+## Oversample training purchases 
+```{r}
+set.seed(20180101)
+filter_recipe %>% 
+  step_upsample(all_outcomes(), ratio= .25) %>% 
+  prep(retain=TRUE) %>% 
+  juice() %>% 
+  # hack because juice isn't reducing the column set
+  bake(filter_recipe, .) ->
+  train_up
+
+print(paste("New rows:", nrow(train_up)- nrow(train_b)))
+```
+
+Now standardise it
+```{r}
+train_ups <- bake(standardise_recipe, train_up) 
+```
+
+## Synthesised training purchases 
+```{r}
+library(synthpop)
+brent_dt %>% 
+  filter(any_purchase=="TRUE") %>% 
+  bake(filter_recipe,.) %>% 
+  syn(k=30000)  ->
+  synth_purchases
+
+synth_purchases %>% 
+  pluck("syn") %>% 
+  union(train_b) %>% 
+  sample_n(nrow(.)) ->
+  train_syn
+```
+
+```{r}
+train_syn_std<- bake(standardise_recipe,train_syn) 
+```
+
+## Preparing
+We'll want to build models against our training sets so let's save some code by making a big list we can map models to.
+
+```{r}
+train_sets<-list(
+  "Basic"=train_b,
+  "Standardised"=train_std,
+  "Upsampled"=train_up,
+  "Upsampled & Standardised"=train_ups,
+  "Synthesised"=train_syn,
+  "Synthesised & Standardised" =train_syn_std
+)
+```
+
+Let's remove a high RAM object.
+
+```{r}
+rm("filter_recipe")
+```

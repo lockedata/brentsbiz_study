@@ -1,0 +1,417 @@
+---
+title: "Data Understanding"
+output: 
+  html_notebook: 
+    toc: yes
+    toc_depth: 1
+---
+
+# What data sources do we have?
+Instead of working with the API and accessing sensitive data, we have a depersonalised database containing many important datasets we can use to help workout who will purchase training.
+
+## Working with the database
+
+We can use the package `DBI` as a general interface to databases and then use the `odbc` package to work with databases that have ODBC drivers.
+
+```{r}
+library(DBI)
+library(odbc)
+con <- dbConnect(odbc::odbc(), .connection_string = "Driver={ODBC Driver 13 for SQL Server};server={brento.database.windows.net};
+database={brentodb};
+uid={datasci};
+pwd={nZY0*51lG^};")
+```
+
+Once we've connected to the database we need to explore what's available to us. 
+
+One way we could do this by exploring the database in SSMS or in the Connections tab in Rstudio. This allows us to interact the structures in a manual and exploratory way.
+
+We can also work programmatically with the database to see what's available. 
+
+`dbListTables` will give us tables in a database and use sthe connection to our database we made earlier.
+
+```{r}
+dbListTables(con, schema_name="anon")
+```
+
+If we wanted to find out more information, we can make a connection to the table INFORMATION_SCHEMA.COLUMNS using `dbplyr` to get information about what's contained in the database.
+```{r}
+library(tidyverse)
+library(dbplyr)
+
+con %>% 
+  tbl(in_schema("information_schema","columns")) %>% 
+  arrange(TABLE_NAME, ORDINAL_POSITION)
+```
+
+To use this info, we would probably want to store it in a format for further use. The `collect` function forces our dataset into memory, instead of storing the query and only fetching the data when required.
+
+```{r}
+con %>% 
+  tbl(in_schema("information_schema","columns")) %>% 
+  select_all(str_to_lower) %>% 
+  select(table_name, column_name, is_nullable, data_type) %>% 
+  arrange(table_name, ordinal_position) %>% 
+  collect() ->
+   schema
+```
+
+We could then do things like detect relationships between tables to help us understand the structure. This uses the more general code that dbplyr utilises from the suite of packages `tidyverse`.
+
+```{r}
+schema %>% 
+  inner_join(schema, by="column_name") %>% 
+  select(from=table_name.x, to=table_name.y) %>% 
+  count(from, to) %>% 
+  spread(to, n)
+```
+
+## Analysing individual tables
+Once we have a grasp of which tables we might think are relevant, we need to evaluate the data in them for fitness.
+
+```{r}
+con %>% 
+  tbl("mailchimp_members") ->
+  mailchimp_members
+
+mailchimp_members
+```
+
+We can also use a nifty package called `DataExplorer` to generate a view of tables.
+
+```{r eval=FALSE}
+con %>% 
+  tbl("mailchimp_members") %>% 
+  collect() %>% 
+  DataExplorer::create_report()
+```
+
+## Diving in
+### Domains
+We probably have a lot of personal email accounts. Based on [mailchimp's 2015 analysis](https://blog.mailchimp.com/major-email-provider-trends-in-2015-gmail-takes-a-really-big-lead/), we might expect the most popular to be:
+
+- gmail
+- hotmail
+- yahoo
+
+
+```{r}
+mailchimp_members %>% 
+  count(email_domain_id)  %>% 
+  collect() ->
+  domains
+
+domains %>%  
+  top_n(10, n) %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+domains %>% 
+  filter(n<250)  %>% 
+  ggplot(aes(x=log(n))) +
+  geom_density()
+```
+
+Going back to BOU about which domains are actually public, they identified a list of public domains. The use of a personal email, a large amount of people in an organisation already being signed up, or being relatively unusual may be predictive.
+
+```{r}
+read_csv("EmailProviders.csv") %>% 
+  mutate(org_type="public") ->
+  isps
+domains %>% 
+  left_join(isps) %>% 
+  mutate(org_type= case_when(
+    !is.na(org_type) ~ "public"
+    ,n>20 ~ "large"
+    ,TRUE ~ "small"
+  )) ->
+  domains
+
+domains
+```
+
+### Signup source
+This indicates where people signed up or were loaded from.
+```{r}
+mailchimp_members %>% 
+  count(signup_source) %>% 
+  collect() %>% 
+  mutate(signup_sources=str_count(signup_source,", ")+1,
+         all_signups=str_split(signup_source,", "),
+         n=1) %>% 
+  unnest(all_signups) %>% 
+  mutate(all_signups=coalesce(all_signups,"Unknown source")) %>% 
+  spread(all_signups, n,fill = 0) ->
+  signup_sources
+
+signup_sources
+```
+
+### I want to get
+This indicates what mailing list campaigns folks would like to receive.
+
+```{r}
+mailchimp_members %>% 
+  count(i_want_to_get) %>% 
+  collect() %>% 
+  mutate(i_want_to_gets=str_count(i_want_to_get,", ")+1,
+         want_to_gets=str_split(i_want_to_get,", "),
+         n=1) %>% 
+  unnest(want_to_gets) %>% 
+  mutate(want_to_gets=coalesce(want_to_gets,"Unknown")) %>% 
+  spread(want_to_gets, n,fill = 0) ->
+  want_to_gets
+
+want_to_gets
+```
+
+### Member rating
+This is a mailchimp defined feature based on how engaged subscribers are. It isn't foolproof as it relies on people allowing the tracking pixels but it's usually pretty good.
+
+```{r}
+mailchimp_members %>% 
+  count(member_rating) %>% 
+  mutate(prop=as.numeric(n)/sum(n)) %>% 
+  arrange(member_rating)
+```
+
+Two thirds of the members have relatively low engagement rates based on their member ratings.
+
+### Location
+
+```{r message=FALSE}
+library(ggmap)
+mailchimp_members %>%
+  count(longitude, latitude) %>% 
+  collect() %>% 
+  ungroup() %>% 
+  mutate(longitude=as.numeric(str_replace(longitude,"'","")),
+         latitude=as.numeric(str_replace(latitude,"'",""))) %>% 
+  {ggmap(get_stamenmap(bbox = c(left = -180, bottom = -80, right = 179.9999, top = 85), zoom = 3)) +
+      geom_point(data=., aes(x=longitude, y=latitude, size=n), colour="red") +
+      theme_nothing()
+  }
+``` 
+
+```{r}
+mailchimp_members %>% 
+  count(country_code) %>% 
+  arrange(desc(n))
+```
+
+If using country code as a feature, we'll need to add an explicit missing and lump together the smaller labels.
+
+### Wordpress users
+We have some data about people who are registered on the wordpress site for things like comments. This might be an interesting measure of engagement.
+
+```{r}
+con %>% 
+  tbl("users") ->
+  wp_users
+
+wp_users
+```
+
+
+```{r}
+mailchimp_members %>% 
+  full_join(wp_users, by="email_user_id",suffix=c(".m",".w")) %>% 
+  collect() %>% 
+  mutate(wp_match_type= case_when(
+    !is.na(email_domain_id.m)& !is.na(email_domain_id.w) ~ "Both"
+    , !is.na(email_domain_id.m) ~ "Mailchimp"
+    , !is.na(email_domain_id.w) ~ "Wordpress"
+  )) %>%
+  select(email_user_id, wp_match_type) ->
+  user_types
+
+user_types %>% 
+  count(wp_match_type)
+```
+
+There are substantially more mailchimp subscribers than users who directly interact with the site in a signed up fashion. <5k are pure wordpress users. It will be interesting to see where profitability is. Assuming folks have to register on wordpress to purchase, then the Wordpress only bunch or the ones registered on both are likely to be the ones with purchases. The Wordpress only ones with purchases might be managers or people with authority to make purchases versus the engaged people who are the influencers/decision makers.
+
+For wordpress, we can also get some insight.
+
+```{r}
+con %>% 
+  tbl("usin_user_data") ->
+  wp_users_insight
+
+wp_users_insight
+```
+
+Location data of wordpress users broadly matches the distribution of users in the mailing list.
+
+```{r}
+wp_users_insight %>% 
+  count(country) %>% 
+  arrange(desc(n))
+```
+
+The vast majority of registered users have single session behaviours.
+```{r}
+wp_users_insight %>% 
+  count(sessions) %>% 
+  collect() %>% 
+  ggplot(aes(x=log(sessions), y=n), data=.)+
+  geom_col()
+```
+
+
+85% of registered users have 10 sessions or less.
+```{r}
+wp_users_insight %>% 
+  count(sessions) %>% 
+  collect() %>% 
+  mutate(prop=as.numeric(n)/sum(n) ) %>% 
+  arrange(desc(n),desc(sessions)) %>% 
+  mutate(cum_prop=cumsum(as.numeric(n)/sum(n)))
+```
+
+
+### Students
+In approximately 1/16th of training transactions - an address for a student has been provided.
+```{r}
+(con %>% 
+  tbl("woocommerce_order_items_meta") ->
+  students)
+```
+
+Approx. 20% of students don't subscribe.
+```{r}
+students %>% 
+  left_join(mailchimp_members, by="email_user_id", suffix=c(".s",".m")) %>% 
+  group_by(email_user_id) %>%
+  summarise(n=n(), mailchimp=n_distinct(email_domain_id.m)) %>% 
+  group_by(mailchimp) %>% 
+  summarise(n=sum(n))
+```
+
+### Training sales
+Training purchases partly end up in the `posts` table. The `posts` schema definition doesn't play nice with the odbc driver. As a result, a subset of columns needs to be imported instead of live connected. We should also restrict to a specific post_type to save extraneous data.
+```{r}
+con %>% 
+  dbGetQuery("select 
+            id as post_id,
+            post_date,
+            post_date_gmt,
+            post_name,
+            post_status
+            comment_count
+            from anon.posts 
+            where post_type='shop_order'") ->
+  posts
+
+posts
+```
+
+The sales data is very basic and doesn't contain the purchaser.
+
+```{r}
+con %>% 
+  tbl("woocommerce_order_items") ->
+  training_sales
+
+training_sales
+```
+
+```{r}
+training_sales %>% 
+  count(order_id) %>% 
+  collect() %>% 
+  ggplot(data=., aes(x=n)) +
+  geom_density()
+```
+
+Most people order a single training item in one transaction.
+
+```{r}
+training_sales %>% 
+  count(order_id) %>% 
+  filter(n>1) %>% 
+  arrange(desc(n))
+```
+
+```{r}
+training_sales %>% 
+  count(order_item_name) %>% 
+  arrange(desc(n))
+```
+
+```{r}
+training_sales %>% 
+  collect() %>% 
+  mutate(highlevel_training= str_extract(
+    str_to_lower(order_item_name),
+    boundary("word"))) %>% 
+  count(highlevel_training) %>% 
+  arrange(desc(n))
+```
+
+Based on this, there are free training activities that need to be excluded from the list of purchases.
+
+
+```{r}
+posts %>% 
+  collect() %>% 
+  mutate(period=zoo::as.yearmon(post_date_gmt)) %>% 
+  count(period) ->
+  monthly_training_sales
+
+monthly_training_sales %>% 
+  ggplot(data=., aes(x=period, y=n)) +
+  geom_line() + 
+  geom_smooth()
+```
+
+The DB didn't include email addresses due to the vagaries of wordpress. BOU provided us a with a spreadsheet of emails!
+
+```{r}
+library(readxl)
+orders<-read_excel("Order Emails.xlsx")
+orders
+```
+
+
+### Newsletter engagement
+
+Campaign information proved to be super hard to get hold of, so this iteration won't utilise the information.
+
+http://developer.mailchimp.com/documentation/mailchimp/reference/campaigns/#
+
+BOU also just stopped tracking clicks in reports so incorporating that data into models would be a problem since wouldn't be able to use that data going forward.
+
+
+```{r}
+con %>% 
+  tbl("mailchimp_opens") ->
+  mailchimp_opens
+
+mailchimp_opens
+```
+
+
+```{r}
+mailchimp_opens %>% 
+  collect() %>% 
+  mutate(period=zoo::as.yearmon(click_timestamp)) %>% 
+  count(period) ->
+  monthly_mailchimp_opens
+
+monthly_mailchimp_opens %>% 
+  ggplot(data=., aes(x=period, y=n)) +
+  geom_line() + 
+  geom_smooth()
+```
+
+
+## Conclusion
+We can analyse training sales made by:
+1. Information about people signed up for the mailing list
+2. Website activity
+3. Open activtiy and newsletter engagement
+
+We will be able to compare this against training sales made in 2017 to build a model, predicting sales. We can use purchaser and students as people who purchase.

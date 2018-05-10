@@ -1,0 +1,27 @@
+---
+title: "Business Understanding"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Briefing
+Brent Ozar Unlimited are a training and consultancy organisation. Maximising how many people attend their training greatly increases the profitability of courses. BOU would like to use their existing mailing list information to identify likely potential customers and put new workflows in place to encourage them to transact. These could be more targeted mails, prioritising responses, tailoring content, and the offering of discounts. In short, knowing the likelihood of someone to purchase training helps BOU create more effective marketing strategies.
+
+## Key success criteria
+1. Something that reasonably ranks mailing list members by likelihood to purchase
+2. Simplicity is a virtue, so an interpretable and simple model is preferable to complex model, at least initially!
+
+## Business process
+People sign up for BOUs mailing list either by directly signing up or being added after purchasing services or training from BOU.
+
+Once on the mailing list, people will receive different emails according to their preferences. The company doesn't currently do a lot of A/B testing of content.
+
+People can register for training via the BOU website and, since the person buying isn't always the person learning, people can register students.
+
+## Caveats and issues
+- Due to systems changes, data on training purchases is lost for pre-2017.
+- As we're dealing with a lot of customer-level data we'll need to ensure we're only working with depersonalised data.
+- Information isn't stored in something like a data warehouse so we may encounter difficulties getting all the data we might want.

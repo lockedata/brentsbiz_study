@@ -1,0 +1,199 @@
+---
+title: "Models"
+output: 
+  html_notebook: 
+    toc: yes
+    toc_depth: 1
+---
+
+```{r setup}
+do_glm<-!file.exists("../outputs/glms.rds")
+do_glmnets<-!file.exists("../outputs/glmnets.rds")
+do_trees<-!file.exists("../outputs/trees.rds")
+do_automl<-!file.exists("../outputs/autotml.rds")
+```
+
+# Models - Basic glms
+```{r  eval=do_glm, echo=TRUE}
+library(broom)
+library(ggplot2)
+train_sets %>% 
+  map(~glm(any_purchase~  member_rating+ First.Responder.Kit+ Unknown.recd+ Monday.Links...our.favorite.SQL...tech.news.from.the.week+ weekday_open_prop + weekday_clicks_prop, 
+           data=.,
+           family="binomial",
+           y=FALSE,x=FALSE,model=FALSE))  ->
+  basic_glm
+
+saveRDS(basic_glm, "../outputs/glms.rds")
+```
+
+```{r eval=!do_glm, echo=FALSE}
+basic_glm<-read_rds("../outputs/glms.rds")
+```
+
+```{r fig.width=10}
+basic_glm %>% 
+  map_df(tidy, .id = "set") %>% 
+  filter(term!="(Intercept)") %>% 
+  ggplot(aes(x=term, y=estimate, colour=set)) +
+  geom_point(alpha=.5, size=3)  +
+  coord_flip() +
+  ggthemes::theme_fivethirtyeight()+
+  geom_hline(aes(yintercept=0), colour="darkgrey", linetype="dashed")
+```
+
+Attributes with values consistently above 0 (dashed line) increase likelihood to buy training, and those below reduce the likelihood. The further away from the 0, the greater the impact. 
+
+```{r}
+library(optiRum)
+vals_to_conv<-seq(-1.5,1,by=0.5)
+data_frame(Coefficient=vals_to_conv,
+           `Odds Ratio (p/p-1)`= round(logit.odd(vals_to_conv),2),
+           `Probability` = round(logit.prob(vals_to_conv),2))
+```
+
+# Models - Basic tree models
+```{r eval=do_trees, echo=TRUE}
+library(FFTrees)
+train_sets %>% 
+  map(~dplyr::select(mutate(., any_purchase=as.logical(any_purchase)),
+              member_rating:weekend_open_prop, 
+              holiday_clicks_prop:weekend_clicks_prop)) %>% 
+  map(~FFTrees(any_purchase~., .,
+               goal="bacc",do.comp = FALSE,progress = FALSE)) ->
+  basic_trees
+saveRDS(basic_trees, "../outputs/trees.rds")
+```
+
+```{r eval=!do_glm, echo=FALSE}
+basic_trees<-read_rds("../outputs/trees.rds")
+```
+
+```{r}
+basic_trees %>% 
+  map_df(~cbind(.$tree.definitions,.$tree.stats$train),.id = "set") ->
+  basic_tree_results
+
+basic_tree_results
+```
+
+
+
+The chart shows different trees built using the different data sets and the balanced accuracy measure. Balanced accuracy is average of the proportion of purchases correctly classified and the proportion of non-purchases correctly classified.
+```{r fig.width=10}
+basic_tree_results %>% 
+  ggplot(aes(x=cues, y=bacc, colour=set)) +
+  geom_point(alpha=.5, size=3)  +
+  coord_flip() +
+  ggthemes::theme_fivethirtyeight()
+```
+
+We can look at the difference between the correctly classified purchases (red) and the correctly classified non-purchases (grey) for the trees with the highest balanced accuracy. There's two visible cases:
+
+1. high accuracy for purchases and low accuracy for non-purchases 
+2. OK accuracy for purchases and good accuracy for non-purchases
+
+Selection one of these would depend on the cost of the low accuracy for non-purchases.
+
+```{r fig.width=10}
+basic_tree_results %>% 
+  top_n(10, bacc) %>% 
+  mutate(cues=stringr::str_wrap(stringr::str_replace_all(cues,";", " "),1)) %>% 
+  dplyr::select(cues, sens, spec, set) %>% 
+  ggplot(aes(x=set, y=spec, ymax=sens, ymin=spec)) +
+  geom_pointrange(alpha=0.3, size=2)+
+  geom_point(aes(y=sens), colour="red", size=6)+
+  facet_wrap(~cues, ncol=4)+
+  ggthemes::theme_fivethirtyeight()
+```
+
+
+# Models - glmnets
+
+glmnets take all our variables and construct a model with them. However, a model with `r ncol(test_b)-1` coefficients would be pretty crazy. Instead `glmnet` downweights coefficients towards 0 as it penalises complexity. As such, even though our model notionally contains all our columns not everything will contribute.
+
+
+```{r eval=do_glmnets}
+library(glmnet)
+library(glmnetUtils)
+train_sets %>% 
+  map(~cv.glmnet(any_purchase~., data=. ,
+              family = "binomial",type.measure="class",
+              standardize = FALSE)) ->
+  basic_glmnets
+
+saveRDS(basic_glmnets, "../outputs/glmnets.rds")
+```
+
+```{r eval=!do_glmnets, echo=FALSE}
+basic_glmnets<-read_rds("../outputs/glmnets.rds")
+```
+
+```{r fig.height=15}
+basic_glmnets %>% 
+  map_df(~rownames_to_column(as.data.frame(as.matrix(coefficients(.))),"col"),.id = "set" ) %>% 
+  rename(coef=`1`) -> 
+  basic_glmnet_coefs
+
+basic_glmnet_coefs %>% 
+  filter(coef!=0.000000e+00) %>% 
+  filter(col!="(Intercept)") %>% 
+  arrange(col) %>% 
+  count(col) %>% 
+  mutate( pane = row_number() %/% 38) ->
+  panes
+  
+basic_glmnet_coefs %>% 
+  inner_join(panes) %>% 
+  arrange(desc(col)) %>% 
+  mutate(col=fct_inorder(col)) %>% 
+  ggplot(aes(x=col, y=coef, colour=set)) +
+  geom_point() + 
+  coord_flip()+
+  facet_wrap(~pane,scales = "free", ncol=5)+
+  ggthemes::theme_fivethirtyeight()
+```
+
+The non-standardised types of samples do not work well with glmnet and typically it would have scaled them. We can see which columns (primarily in the standardised samples) make it our models most commonly. These will be the most predictive columns overall.
+```{r fig.height=15}
+panes %>% 
+  arrange(desc(n)) %>% 
+  mutate(col=fct_inorder(col)) %>% 
+  mutate( pane = row_number() %/% 38) %>% 
+  arrange(desc(col)) %>% 
+  mutate(col=fct_inorder(col)) %>% 
+  ggplot(aes(x=col, y=n)) +
+  geom_col() + 
+  coord_flip()+
+  facet_wrap(~pane, ncol=5, scales = "free_y")+
+  ggthemes::theme_fivethirtyeight()
+```
+
+
+# Models - Complex models via h2o
+
+```{r eval=do_automl, message=FALSE, results='hide'}
+library(h2o)
+options("h2o.use.data.table"=TRUE)
+h2o.init(max_mem_size = "8G")
+train_sets %>% 
+  map(as.h2o) %>% 
+  map(~h2o.automl(y = "any_purchase", training_frame = ., seed = 1313, max_runtime_secs = 60)) ->
+  basic_automl
+
+saveRDS(basic_automl, "../outputs/automl.rds")
+```
+
+```{r eval=!do_glmnets, echo=FALSE}
+basic_automl<-read_rds("../outputs/automl.rds")
+```
+
+```{r}
+basic_automl %>% 
+  map_df(~as.data.frame(.@leaderboard), .id="set")  ->
+  automl_highlevel_results
+
+automl_highlevel_results
+```
+
+# Evaluation
