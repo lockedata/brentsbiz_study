@@ -7,6 +7,7 @@ output:
 ---
 
 ```{r setup}
+library(tidyverse)
 do_glm<-!file.exists("glms.rds")
 do_glmnets<-!file.exists("glmnets.rds")
 do_trees<-!file.exists("trees.rds")
@@ -63,7 +64,6 @@ train_sets %>%
            y=FALSE,x=FALSE,model=FALSE))  ->
   basic_glm
 
-saveRDS(basic_glm, "glms.rds")
 ```
 
 ```{r eval=!do_glm, echo=FALSE}
@@ -112,7 +112,7 @@ train_sets %>%
   map(~FFTrees(purchased~., .,
                goal="bacc",do.comp = FALSE,progress = FALSE)) ->
   basic_trees
-saveRDS(basic_trees, "trees.rds")
+#saveRDS(basic_trees, "trees.rds")
 ```
 
 ```{r eval=!do_glm, echo=FALSE}
@@ -190,7 +190,7 @@ basic_glmnet_coefs %>%
   filter(col!="(Intercept)") %>% 
   arrange(col) %>% 
   count(col) %>% 
-  mutate( pane = row_number() %/% 38) ->
+  mutate( pane = row_number() %/% 39) ->
   panes
   
 basic_glmnet_coefs %>% 
@@ -209,7 +209,7 @@ We can see which columns make it into our models most commonly. These will be th
 panes %>% 
   arrange(desc(n)) %>% 
   mutate(col=fct_inorder(col)) %>% 
-  mutate( pane = row_number() %/% 38) %>% 
+  mutate( pane = row_number() %/% 39) %>% 
   arrange(desc(col)) %>% 
   mutate(col=fct_inorder(col)) %>% 
   ggplot(aes(x=col, y=n)) +
@@ -229,10 +229,10 @@ options("h2o.use.data.table"=TRUE)
 h2o.init(max_mem_size = "6G")
 train_sets %>% 
   map(as.h2o) %>% 
-  map(~h2o.automl(y = "purchased", training_frame = ., seed = 1313, max_runtime_secs = 60)) ->
+  map(~h2o.automl(y = "purchased", training_frame = ., seed = 1313, max_runtime_secs = 120)) ->
   basic_automl
 
-saveRDS(basic_automl, "automl.rds")
+#saveRDS(basic_automl, "automl.rds")
 ```
 
 ```{r eval=!do_glmnets, echo=FALSE}
@@ -240,6 +240,7 @@ basic_automl<-read_rds("automl.rds")
 ```
 
 ```{r}
+basic_automl[3]
 basic_automl %>% 
   map_df(~as.data.frame(.@leaderboard), .id="set")  ->
   automl_highlevel_results
