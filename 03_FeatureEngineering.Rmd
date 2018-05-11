@@ -337,9 +337,8 @@ mailchimp_labelled %>%
 
 mailchimp_wide %>% 
   select(-(optin_time:time_zone),
-         -(region:notes)) %>% 
-  mutate(never_opened=is.na(holiday_open_raw),
-         never_clicked=is.na(holiday_clicks_raw)) -> 
+         -(region:notes), -earliest) %>% 
+  mutate(never_opened=is.na(holiday_open_raw)) -> 
   mailchimp_wide
 
 mailchimp_wide<-mutate_if(mailchimp_wide, is.logical, ~coalesce(.,FALSE))
@@ -362,5 +361,5 @@ mailchimp_wide %>%
   mailchimp_wide
 
 
-write_csv(mailchimp_wide,"../outputs/finaldataset.csv")
+write_csv(mailchimp_wide,"finaldataset.csv")
 ```

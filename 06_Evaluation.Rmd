@@ -1,0 +1,90 @@
+---
+title: "Evaluation"
+output: html_notebook
+---
+
+Evaluation of models uses a combination of measures of model fit (how the model does against the training data) and how it works on the test data.
+
+# Key model measures
+
+## Regression
+You have one or two samples and a hypothesis, which may be true or false:
+
+- The null hypothesis is that nothing happened.
+- The alternative hypothesis is that something did happen.
+
+Let’s say that you set out to prove that something did happen:
+- You would look at the distribution of the data.
+- You would choose a test statistic.
+- You would look at the p-value.
+
+You calculate a test statistic. It is critical that you know the distribution of the statistic. For a sample mean, you know the distribution by invoking the central limit theorem. From the statistic and its distribution, you can calculate the p-value. This is the probability of the test statistic value being so extreme that it supports the null hypothesis. If the p-value is too small, you can assume that the null hypothesis is false. This is called rejecting the null hypothesis.
+
+### How small is too small?
+How do you know when the p-value is small?
+- When the p-value is greater than 0.05, the null hypothesis is true.
+- When the p-value is less than 0.05, the alternative hypothesis is true.
+
+For questions where it is important that you minimize the risk of the prediction being wrong, you may want the p-value to be 0.01 or even 0.001.
+
+### Confidence intervals
+What you need to consider is how confident you are that you can extrapolate from your little dataset to the larger population.
+One way to establish this is to look at the mean. You can use descriptive statistics in Machine Learning to work out how much you can extrapolate from a small amount of data to a larger amount of data.
+
+You can calculate relative frequency:
+- How much is above or below the mean?
+- Mean (after > before)
+- Mean (abs(x – mean)) < 2 × sd(s) 
+
+This gives you the fraction of data that is greater than two standard deviations from the mean.
+
+How do statistics answer your questions?
+- You can use the F statistic to determine whether your model is significant or insignificant.
+- You can use the R2 statistic to determine the quality of the model and how well the data points fit the model.
+- You can use P, or probability, to determine the likelihood that you are correct.
+
+|	Type of analysis|	Test statistic|	How can you tell if it is significant? |	What assumption can you make?|
+|------|-----|-----|------|
+|	Regression analysis	|F	|Big F, small p (less than 0.05)|	A general relationship between the predictors and the response.|
+|	Regression analysis	|t	| Big t (more than+2.0 or less than –2.0), small p (less than 0.05)	| X is an important predictor|
+|	Difference of means	| t (two-tailed)|	Big t (more than +2.0 or less than –2.0), small p (less than 0.05)	|There is a significant difference of means.|
+|	Difference of means	| t (one-tailed) |	Big t (more than +2.0 or less than –2.0), small p (less than 0.05)|	There is a significant difference of means.|
+
+The p-value is a probability that this finding is significant. The lower the p-value, the better. You can look at the levels of significance, which are codes to help you identify the most appropriate level of p-value.
+
+### The R2 statistic
+R2 is the coefficient of determination. If you want to know how successful the model is, you look at this value. The higher the R2 value, the better. The variance of y is explained by the regression model, but the remaining variance is not explained by the model. The adjusted value takes into account the number of variables in the model.
+
+R2 does not indicate whether:
+
+- The independent variables are a cause of the changes in the dependent variable.
+- Omitted-variable bias exists.
+- The correct regression was used.
+- The most appropriate set of independent variables has been chosen.
+- There is collinearity present in the data on the explanatory variables.
+- The model might be improved by using transformed versions of the existing set of independent variables.
+- There are enough data points to make a solid conclusion.
+
+### The F statistic
+This is where the F statistic comes in. Its purpose is to determine whether the model is significant or insignificant. You should check the F statistic first because if it is not significant, the model doesn’t matter. 
+
+
+### Metrics for regression models
+Several other regression model metrics are calculated on the error in the model, which is the difference between the true value and the predicted value for each case:
+
+- **Mean absolute error** The mean (average) of all the error in the model.
+- **Root-mean-square error** The square root of the mean of the squares of all the errors in the model.
+- **Relative absolute error** The total error in the model as a percentage of the total true value.
+- **Relative square error** The square of the total error in the model, divided by the square of the total predicted values.
+- **Coefficient of determination** The fit of the data to the model, expressed as a number between 1 (meaning that the data and model match exactly) and 0 (meaning that there is no match between the data and the model). It is often referred to as r2, R2, or r-squared.
+
+## Classification
+Some key metrics you might look at for classification models are:
+
+- **Accuracy** True results as a proportion of total cases.
+- **Precision** True results as a proportion of positive results.
+- **Recall** Correct results as a fraction of all results.
+- **F-score** A calculated combination of recall and precision.
+- **AUC** For the area under the curve metric, the results are plotted as a curve on a graph, with false positives on the x-axis and true positives on the y-axis. AUC represents the area of the graph under the plotted curve.
+- **Average log loss** The difference between the true probability distribution and the model’s probability distribution.
+- **Train log loss** The difference between the prediction generated by the model against a random prediction.

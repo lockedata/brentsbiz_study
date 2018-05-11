@@ -10,18 +10,26 @@ output:
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 library(tidyverse)
 library(dtplyr)
-brent_dt<-data.table::fread("../outputs/finaldataset.csv")
-brent_dt[, purchase:=NULL]
+brent_dt<-data.table::fread("finaldataset.csv")
 brent_dt %>% 
   as_tibble() %>% 
   set_tidy_names(syntactic = TRUE) %>% 
   mutate_if(is_logical, factor, levels=c("FALSE","TRUE")) %>% 
   mutate_if(is_character, as_factor) %>% 
-  mutate_if(~is.factor(.)&n_distinct(.)!=2, fct_infreq) ->
+  mutate_if(~is.factor(.)&n_distinct(.)!=2, fct_infreq) %>% 
+  mutate(purchased=as.factor(purchased))->
   brent_dt
 
 
 ```
+
+When we build models, we want to know our model is useful by applying to data it's never seen before. This means we need to keep some data aside for testing. We should also take steps to ensure that no information about our test data makes it into our training data. Lags and aggregates usually have to be calculated on the netire dataset, but when we transform variables for things like binning data or scaling it, we should only use the information from mour training data.
+
+By default we should take a train and test split. This is commonly done with a  70:30 split. Depending on situation, we may need to emply extra sampling strategies. 
+
+- If we need to create different models based on different starting arguments provided to the alogorithm, we can use **cross-validation** to slice up our training data and run multiple fitting processes and compare the results to pick the best performing model
+- If we want to make a model's parameters robust, we can use **bootstrapping** to take many samples (wuth replacement), fit our model to each sample and then combine the many derived values for each parameter (often by averaging) 
+- If we need to handle missing data with a sophisticated model, we should split out a dataset dedicated to this task of **imputation**
 
 # Samples
 ```{r}
@@ -50,27 +58,39 @@ splits %>%
   test_raw
 ```
 
+## Sample-dependent feature engineering and reduction
+Once we have training data we need to think about doing some tasks like feature reduction and scaling. Removing columns that don't add value or will even make our our model fit worse, will help our process. Things that can result in a bad fit are:
+
+- Highly correlated variables
+- Columns with a low proportion of variance
+- Numeric values on many different scales
+
+### Doing our preparation
 Start our recipe for processing our data
 
 ```{r}
 train_raw %>% 
   recipe( .)  %>%
-  add_role(any_purchase, new_role = "outcome") %>% 
-  add_role(email_user_id, new_role = "id") %>% 
-  add_role(everything(),-any_purchase, -email_user_id, new_role = "predictor")->
+  add_role(purchased, new_role = "outcome") %>% 
+  add_role(email_user_id, email_domain_id, new_role = "id") %>% 
+  add_role(everything(),-purchased, -email_user_id,-email_domain_id, new_role = "predictor")->
   starter_recipe
 
 starter_recipe
 ```
 
-Perform some steps to remove columns and fill in missing country
+Perform some steps to remove columns and standardise variables using z-scores.
 ```{r}
 starter_recipe %>% 
   step_rm(has_role("id")) %>% 
   step_corr(all_numeric())  %>% 
-  step_bagimpute(country_code, seed_val = 42) %>% 
-  step_other(country_code) %>%  
   step_zv(all_predictors())  %>% 
+  step_rm(country_code) %>%
+  step_center(all_numeric()) %>% 
+  step_scale(all_numeric()) %>%  
+  step_rm(signup_source, i_want_to_get) %>% 
+  step_modeimpute(all_nominal()) %>% 
+  step_meanimpute(all_numeric()) %>% 
   prep(train_raw) ->
   filter_recipe
 
@@ -78,36 +98,27 @@ filter_recipe
 ```
 
 ```{r}
-train_b <- bake(filter_recipe, newdata = train_raw) 
-test_b  <- bake(filter_recipe, newdata = test_raw) 
-
-train_b
-```
-
-
-
-Perform numeric standardisation steps.
-
-```{r}
-train_b %>% 
-  recipe(any_purchase~.) %>% 
-  step_center(all_numeric()) %>% 
-  step_scale(all_numeric()) %>% 
-  prep(train_b) ->
-  standardise_recipe
-
-standardise_recipe
-```
-
-
-```{r}
-train_std <- bake(standardise_recipe, train_b) 
-test_std  <- bake(standardise_recipe, test_b) 
+train_std <- bake(filter_recipe, newdata = train_raw) 
+test_std  <- bake(filter_recipe, newdata = test_raw) 
 
 train_std
 ```
 
-## Oversample training purchases 
+
+## Unbalanced data
+Imbalanced datasets mean that the class you want to analyse is under-represented in the dataset. In other words, you have far more data representing one outcome class than any other class. This issue could be due to incorrect sampling of the data, or merely that the class itself is rare.
+
+Imbalanced data has an impact on the evaluation of the model performance, and to understand its business value takes more than just looking at the overall accuracy.  
+
+Strategies for making datasets more balanced are:
+
+- **undersampling** or **downsampling** where you select a corresponding number of records from the majority class as there is in the minority class
+- **oversampling** or **upsampling** where you allow rows from the minority class to be selcted multiple times so they are represented more in the training data
+- **synthesising** data to make "new" records for the minority class 
+
+### Oversample training purchases 
+
+
 ```{r}
 set.seed(20180101)
 filter_recipe %>% 
@@ -116,52 +127,42 @@ filter_recipe %>%
   juice() %>% 
   # hack because juice isn't reducing the column set
   bake(filter_recipe, .) ->
-  train_up
+  train_ups
 
-print(paste("New rows:", nrow(train_up)- nrow(train_b)))
+print(paste("New rows:", nrow(train_ups)- nrow(train_std)))
 ```
 
-Now standardise it
-```{r}
-train_ups <- bake(standardise_recipe, train_up) 
-```
 
-## Synthesised training purchases 
+### Synthesised training purchases 
 ```{r}
 library(synthpop)
 brent_dt %>% 
-  filter(any_purchase=="TRUE") %>% 
+  filter(purchased=="1") %>% 
   bake(filter_recipe,.) %>% 
   syn(k=30000)  ->
   synth_purchases
 
 synth_purchases %>% 
   pluck("syn") %>% 
-  union(train_b) %>% 
+  union(train_std) %>% 
   sample_n(nrow(.)) ->
-  train_syn
+  train_syn_std
 ```
 
-```{r}
-train_syn_std<- bake(standardise_recipe,train_syn) 
-```
-
-## Preparing
+## Preparing our different samples
 We'll want to build models against our training sets so let's save some code by making a big list we can map models to.
 
 ```{r}
 train_sets<-list(
-  "Basic"=train_b,
   "Standardised"=train_std,
-  "Upsampled"=train_up,
   "Upsampled & Standardised"=train_ups,
-  "Synthesised"=train_syn,
   "Synthesised & Standardised" =train_syn_std
+)
+
+test_sets<-list(
+  "Standardised"=test_std,
+  "Upsampled & Standardised"=test_std,
+  "Synthesised & Standardised" =test_std
 )
 ```
 
-Let's remove a high RAM object.
-
-```{r}
-rm("filter_recipe")
-```
