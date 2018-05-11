@@ -85,7 +85,7 @@ starter_recipe %>%
   step_rm(has_role("id")) %>% 
   step_corr(all_numeric())  %>% 
   step_zv(all_predictors())  %>% 
-  step_rm(country_code) %>%
+  step_rm(country_code, client_type ) %>%
   step_center(all_numeric()) %>% 
   step_scale(all_numeric()) %>%  
   step_rm(signup_source, i_want_to_get) %>% 
@@ -159,10 +159,5 @@ train_sets<-list(
   "Synthesised & Standardised" =train_syn_std
 )
 
-test_sets<-list(
-  "Standardised"=test_std,
-  "Upsampled & Standardised"=test_std,
-  "Synthesised & Standardised" =test_std
-)
 ```
 
