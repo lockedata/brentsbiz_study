@@ -13,7 +13,7 @@ Instead of working with the API and accessing sensitive data, we have a deperson
 
 We can use the package `DBI` as a general interface to databases and then use the `odbc` package to work with databases that have ODBC drivers.
 
-```{r}
+```{r 02_DataUnderstanding-1}
 library(DBI)
 library(odbc)
 con <- dbConnect(odbc::odbc(), .connection_string = "Driver={ODBC Driver 13 for SQL Server};server={brento.database.windows.net};
@@ -30,12 +30,12 @@ We can also work programmatically with the database to see what's available.
 
 `dbListTables` will give us tables in a database and use sthe connection to our database we made earlier.
 
-```{r}
+```{r 02_DataUnderstanding-2}
 dbListTables(con, schema_name="anon")
 ```
 
 If we wanted to find out more information, we can make a connection to the table INFORMATION_SCHEMA.COLUMNS using `dbplyr` to get information about what's contained in the database.
-```{r}
+```{r 02_DataUnderstanding-3}
 library(tidyverse)
 library(dbplyr)
 
@@ -46,7 +46,7 @@ con %>%
 
 To use this info, we would probably want to store it in a format for further use. The `collect` function forces our dataset into memory, instead of storing the query and only fetching the data when required.
 
-```{r}
+```{r 02_DataUnderstanding-4}
 con %>% 
   tbl(in_schema("information_schema","columns")) %>% 
   select_all(str_to_lower) %>% 
@@ -58,7 +58,7 @@ con %>%
 
 We could then do things like detect relationships between tables to help us understand the structure. This uses the more general code that dbplyr utilises from the suite of packages `tidyverse`.
 
-```{r}
+```{r 02_DataUnderstanding-5}
 schema %>% 
   inner_join(schema, by="column_name") %>% 
   select(from=table_name.x, to=table_name.y) %>% 
@@ -69,7 +69,7 @@ schema %>%
 ## Analysing individual tables
 Once we have a grasp of which tables we might think are relevant, we need to evaluate the data in them for fitness.
 
-```{r}
+```{r 02_DataUnderstanding-6}
 con %>% 
   tbl("mailchimp_members") ->
   mailchimp_members
@@ -79,7 +79,7 @@ mailchimp_members
 
 We can also use a nifty package called `DataExplorer` to generate a view of tables.
 
-```{r eval=FALSE}
+```{r 02_DataUnderstanding-7, eval=FALSE}
 con %>% 
   tbl("mailchimp_members") %>% 
   collect() %>% 
@@ -95,7 +95,7 @@ We probably have a lot of personal email accounts. Based on [mailchimp's 2015 an
 - yahoo
 
 
-```{r}
+```{r 02_DataUnderstanding-8}
 mailchimp_members %>% 
   count(email_domain_id)  %>% 
   collect() ->
@@ -107,7 +107,7 @@ domains %>%
 ```
 
 
-```{r}
+```{r 02_DataUnderstanding-9}
 domains %>% 
   filter(n<250)  %>% 
   ggplot(aes(x=log(n))) +
@@ -116,7 +116,7 @@ domains %>%
 
 Going back to BOU about which domains are actually public, they identified a list of public domains. The use of a personal email, a large amount of people in an organisation already being signed up, or being relatively unusual may be predictive.
 
-```{r}
+```{r 02_DataUnderstanding-10}
 read_csv("EmailProviders.csv") %>% 
   mutate(org_type="public") ->
   isps
@@ -134,7 +134,7 @@ domains
 
 ### Signup source
 This indicates where people signed up or were loaded from.
-```{r}
+```{r 02_DataUnderstanding-11}
 mailchimp_members %>% 
   count(signup_source) %>% 
   collect() %>% 
@@ -152,7 +152,7 @@ signup_sources
 ### I want to get
 This indicates what mailing list campaigns folks would like to receive.
 
-```{r}
+```{r 02_DataUnderstanding-12}
 mailchimp_members %>% 
   count(i_want_to_get) %>% 
   collect() %>% 
@@ -170,7 +170,7 @@ want_to_gets
 ### Member rating
 This is a mailchimp defined feature based on how engaged subscribers are. It isn't foolproof as it relies on people allowing the tracking pixels but it's usually pretty good.
 
-```{r}
+```{r 02_DataUnderstanding-13}
 mailchimp_members %>% 
   count(member_rating) %>% 
   mutate(prop=as.numeric(n)/sum(n)) %>% 
@@ -181,7 +181,7 @@ Two thirds of the members have relatively low engagement rates based on their me
 
 ### Location
 
-```{r message=FALSE}
+```{r 02_DataUnderstanding-14, message=FALSE}
 library(ggmap)
 mailchimp_members %>%
   count(longitude, latitude) %>% 
@@ -195,7 +195,7 @@ mailchimp_members %>%
   }
 ``` 
 
-```{r}
+```{r 02_DataUnderstanding-15}
 mailchimp_members %>% 
   count(country_code) %>% 
   arrange(desc(n))
@@ -206,7 +206,7 @@ If using country code as a feature, we'll need to add an explicit missing and lu
 ### Wordpress users
 We have some data about people who are registered on the wordpress site for things like comments. This might be an interesting measure of engagement.
 
-```{r}
+```{r 02_DataUnderstanding-16}
 con %>% 
   tbl("users") ->
   wp_users
@@ -215,7 +215,7 @@ wp_users
 ```
 
 
-```{r}
+```{r 02_DataUnderstanding-17}
 mailchimp_members %>% 
   full_join(wp_users, by="email_user_id",suffix=c(".m",".w")) %>% 
   collect() %>% 
@@ -235,7 +235,7 @@ There are substantially more mailchimp subscribers than users who directly inter
 
 For wordpress, we can also get some insight.
 
-```{r}
+```{r 02_DataUnderstanding-18}
 con %>% 
   tbl("usin_user_data") ->
   wp_users_insight
@@ -245,14 +245,14 @@ wp_users_insight
 
 Location data of wordpress users broadly matches the distribution of users in the mailing list.
 
-```{r}
+```{r 02_DataUnderstanding-19}
 wp_users_insight %>% 
   count(country) %>% 
   arrange(desc(n))
 ```
 
 The vast majority of registered users have single session behaviours.
-```{r}
+```{r 02_DataUnderstanding-20}
 wp_users_insight %>% 
   count(sessions) %>% 
   collect() %>% 
@@ -262,7 +262,7 @@ wp_users_insight %>%
 
 
 85% of registered users have 10 sessions or less.
-```{r}
+```{r 02_DataUnderstanding-21}
 wp_users_insight %>% 
   count(sessions) %>% 
   collect() %>% 
@@ -274,14 +274,14 @@ wp_users_insight %>%
 
 ### Students
 In approximately 1/16th of training transactions - an address for a student has been provided.
-```{r}
+```{r 02_DataUnderstanding-22}
 (con %>% 
   tbl("woocommerce_order_items_meta") ->
   students)
 ```
 
 Approx. 20% of students don't subscribe.
-```{r}
+```{r 02_DataUnderstanding-23}
 students %>% 
   left_join(mailchimp_members, by="email_user_id", suffix=c(".s",".m")) %>% 
   group_by(email_user_id) %>%
@@ -292,7 +292,7 @@ students %>%
 
 ### Training sales
 Training purchases partly end up in the `posts` table. The `posts` schema definition doesn't play nice with the odbc driver. As a result, a subset of columns needs to be imported instead of live connected. We should also restrict to a specific post_type to save extraneous data.
-```{r}
+```{r 02_DataUnderstanding-24}
 con %>% 
   dbGetQuery("select 
             id as post_id,
@@ -310,7 +310,7 @@ posts
 
 The sales data is very basic and doesn't contain the purchaser.
 
-```{r}
+```{r 02_DataUnderstanding-25}
 con %>% 
   tbl("woocommerce_order_items") ->
   training_sales
@@ -318,7 +318,7 @@ con %>%
 training_sales
 ```
 
-```{r}
+```{r 02_DataUnderstanding-26}
 training_sales %>% 
   count(order_id) %>% 
   collect() %>% 
@@ -328,20 +328,20 @@ training_sales %>%
 
 Most people order a single training item in one transaction.
 
-```{r}
+```{r 02_DataUnderstanding-27}
 training_sales %>% 
   count(order_id) %>% 
   filter(n>1) %>% 
   arrange(desc(n))
 ```
 
-```{r}
+```{r 02_DataUnderstanding-28}
 training_sales %>% 
   count(order_item_name) %>% 
   arrange(desc(n))
 ```
 
-```{r}
+```{r 02_DataUnderstanding-29}
 training_sales %>% 
   collect() %>% 
   mutate(highlevel_training= str_extract(
@@ -354,7 +354,7 @@ training_sales %>%
 Based on this, there are free training activities that need to be excluded from the list of purchases.
 
 
-```{r}
+```{r 02_DataUnderstanding-30}
 posts %>% 
   collect() %>% 
   mutate(period=zoo::as.yearmon(post_date_gmt)) %>% 
@@ -369,7 +369,7 @@ monthly_training_sales %>%
 
 The DB didn't include email addresses due to the vagaries of wordpress. BOU provided us a with a spreadsheet of emails!
 
-```{r}
+```{r 02_DataUnderstanding-31}
 library(readxl)
 orders<-read_excel("Order Emails.xlsx")
 orders
@@ -385,7 +385,7 @@ http://developer.mailchimp.com/documentation/mailchimp/reference/campaigns/#
 BOU also just stopped tracking clicks in reports so incorporating that data into models would be a problem since wouldn't be able to use that data going forward.
 
 
-```{r}
+```{r 02_DataUnderstanding-32}
 con %>% 
   tbl("mailchimp_opens") ->
   mailchimp_opens
@@ -394,7 +394,7 @@ mailchimp_opens
 ```
 
 
-```{r}
+```{r 02_DataUnderstanding-33}
 mailchimp_opens %>% 
   collect() %>% 
   mutate(period=zoo::as.yearmon(click_timestamp)) %>% 

@@ -32,7 +32,7 @@ By default we should take a train and test split. This is commonly done with a  
 - If we need to handle missing data with a sophisticated model, we should split out a dataset dedicated to this task of **imputation**
 
 # Samples
-```{r}
+```{r 04_Sampling-1}
 library(modelr)
 library(recipes)
 ```
@@ -41,7 +41,7 @@ library(recipes)
 
 Perform a basic 70:30 split
 
-```{r}
+```{r 04_Sampling-2}
 set.seed(20180409)
 brent_dt %>% 
   modelr::resample_partition(c(train=0.7,test=0.3)) ->
@@ -68,7 +68,7 @@ Once we have training data we need to think about doing some tasks like feature 
 ### Doing our preparation
 Start our recipe for processing our data
 
-```{r}
+```{r 04_Sampling-3}
 train_raw %>% 
   recipe( .)  %>%
   add_role(purchased, new_role = "outcome") %>% 
@@ -80,7 +80,7 @@ starter_recipe
 ```
 
 Perform some steps to remove columns and standardise variables using z-scores.
-```{r}
+```{r 04_Sampling-4}
 starter_recipe %>% 
   step_rm(has_role("id")) %>% 
   step_corr(all_numeric())  %>% 
@@ -97,7 +97,7 @@ starter_recipe %>%
 filter_recipe
 ```
 
-```{r}
+```{r 04_Sampling-5}
 train_std <- bake(filter_recipe, newdata = train_raw) 
 test_std  <- bake(filter_recipe, newdata = test_raw) 
 
@@ -119,7 +119,7 @@ Strategies for making datasets more balanced are:
 ### Oversample training purchases 
 
 
-```{r}
+```{r 04_Sampling-6}
 set.seed(20180101)
 filter_recipe %>% 
   step_upsample(all_outcomes(), ratio= .25) %>% 
@@ -134,7 +134,7 @@ print(paste("New rows:", nrow(train_ups)- nrow(train_std)))
 
 
 ### Synthesised training purchases 
-```{r}
+```{r 04_Sampling-7}
 library(synthpop)
 brent_dt %>% 
   filter(purchased=="1") %>% 
@@ -152,7 +152,7 @@ synth_purchases %>%
 ## Preparing our different samples
 We'll want to build models against our training sets so let's save some code by making a big list we can map models to.
 
-```{r}
+```{r 04_Sampling-8}
 train_sets<-list(
   "Standardised"=train_std,
   "Upsampled & Standardised"=train_ups,

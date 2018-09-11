@@ -48,7 +48,7 @@ Our data will therefore contain:
 
 # Getting the basics sorted
 
-```{r}
+```{r 03_FeatureEngineering-1}
 library(DBI)
 library(odbc)
 con <- dbConnect(odbc::odbc(), .connection_string = "Driver={ODBC Driver 13 for SQL Server};server={brento.database.windows.net};
@@ -60,7 +60,7 @@ pwd={nZY0*51lG^};")
 ## Observations
 This'll be from our mailchimp_members table.
 
-```{r}
+```{r 03_FeatureEngineering-2}
 con %>% 
   tbl("mailchimp_members") ->
   mailchimp_members
@@ -74,7 +74,7 @@ mailchimp_members
 
 Who bought training in 2017? We need to grab the data about who bought and also include the students email addresses to account for students being the requesters but not the purchasers. We will need to exclude the free training options.
 
-```{r}
+```{r 03_FeatureEngineering-3}
 con %>% 
   tbl("woocommerce_order_items") ->
   items
@@ -125,7 +125,7 @@ customers
 With this list of unique email addresses involved in sales we can see how these match up against the membership list. Let's first look at the full list to see how many people were on the list and when they joined.
 
 
-```{r}
+```{r 03_FeatureEngineering-4}
 con %>% 
   tbl("mailchimp_members") ->
   mailchimp_members
@@ -145,7 +145,7 @@ customers %>%
   mailchimp_training_overlap)
 ``` 
 
-```{r echo=FALSE}
+```{r 03_FeatureEngineering-5, echo=FALSE}
 mailchimp_training_overlap %>% 
   filter(mailchimp,purchases, !signed_after_order) %>% 
   pull(n) %>% 
@@ -168,7 +168,7 @@ mailchimp_training_overlap %>%
 
 Looking at the records, `r scales::percent(nomailchimp_and_purchased/nrow(customers))` of customers do not have a mailchimp subscription (currently). `r scales::percent(mailchimp_and_purchased_earlier/nrow(customers))` appear to have become mailchimp members after purchasing. This leaves `r scales::percent(mailchimp_and_purchased/nrow(customers))` of customers being on the mailing list *before* making their first purchase. 
 
-```{r}
+```{r 03_FeatureEngineering-6}
 mailchimp_customers %>% 
   filter(!is.na(member_rating)) %>% 
   mutate(purchased=coalesce(purchased,0))  %>% 
@@ -191,7 +191,7 @@ For situations where you have a **binary** outcome, you have a number of options
 
 There are lots of decision tree algorithms out there but my favourite for simple tree models is FFTrees. FFTrees always have only two options at each decision point in the tree, namely a prediction or more info required. This gives you answers fast and they're very simple to operationalise. You're also DR safe because you could give someone a print out and they coculd follow along.
 
-```{r fig.height=15}
+```{r 03_FeatureEngineering-7, fig.height=15}
 library(FFTrees)
 
 mailchimp_labelled  %>% 
@@ -209,7 +209,7 @@ plot(initial_tree)
 ```
 
 This is a simple model that correctly predicts a good proportion of the customers that purchased.  
-```{r}
+```{r 03_FeatureEngineering-8}
 initial_tree
 ```
 
@@ -224,7 +224,7 @@ Now that we have for each person on the mailing list, we should start incorporat
 ### Opens
 We can build some features around how often people have opened the newsletters in the past.
 
-```{r}
+```{r 03_FeatureEngineering-9}
 library(padr)
 library(timeDate)
 
@@ -277,7 +277,7 @@ opens %>%
 ```
 
 Incorporating the type of usage, like how much they read on the weekends versus during the week might be useful.
-```{r}
+```{r 03_FeatureEngineering-10}
 (opens %>% 
   group_by(email_user_id) %>% 
   summarise(holiday_open_raw=sum(holiday*n),
@@ -292,7 +292,7 @@ Incorporating the type of usage, like how much they read on the weekends versus 
 
 How much they engage with the emails would also be useful to include.
 
-```{r}
+```{r 03_FeatureEngineering-11}
 opens %>% 
   filter(start_month  > 0) %>% 
   mutate(since_start_h=start_month %/% 6) %>% 
@@ -329,7 +329,7 @@ opens_start_hl %>%
 ```
 
 
-```{r}
+```{r 03_FeatureEngineering-12}
 mailchimp_labelled %>% 
   left_join(opens_typeofday, by="email_user_id") %>% 
   left_join(opens_activity, by="email_user_id")  -> 
@@ -352,7 +352,7 @@ mailchimp_wide
 
 ## Combining columns and hygiene
 We can do some cleanup to make things easier to model later.
-```{r}
+```{r 03_FeatureEngineering-13}
 mailchimp_wide %>% 
   set_tidy_names(syntactic = TRUE) %>% 
   mutate_if(is_logical, factor, levels=c("FALSE","TRUE")) %>% 

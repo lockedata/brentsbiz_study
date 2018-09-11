@@ -50,7 +50,7 @@ How do statistics answer your questions?
 |	Difference of means	| t (two-tailed)|	Big t (more than +2.0 or less than ?2.0), small p (less than 0.05)	|There is a significant difference of means.|
 |	Difference of means	| t (one-tailed) |	Big t (more than +2.0 or less than ?2.0), small p (less than 0.05)|	There is a significant difference of means.|
 
-```{r}
+```{r 06_Evaluation-1}
 summary(basic_glm[[1]])
 summary(lm(Sepal.Length~., data=iris))
 ```
@@ -98,13 +98,13 @@ Some key metrics you might look at for classification models are:
 # Evaluating our models
 
 ## Getting model information
-```{r}
+```{r 06_Evaluation-2}
 library(broom)
 basic_glm %>% 
   map_df(tidy, .id="set")
 ```
 
-```{r}
+```{r 06_Evaluation-3}
 library(broom)
 basic_glm %>% 
   map_df(glance, .id="set")
@@ -112,7 +112,7 @@ basic_glm %>%
 
 
 ## Looking at performance on test data
-```{r}
+```{r 06_Evaluation-4}
 test_std_scored<-spread_predictions(test_std, 
                    glm_std=basic_glm[[1]], glm_ups=basic_glm[[2]], glm_syn=basic_glm[[3]],
                    ff_std=basic_trees[[1]], ff_ups=basic_trees[[2]], ff_syn=basic_trees[[3]],
@@ -135,14 +135,14 @@ test_std_scored %>%
 
 ```
 
-```{r}
+```{r 06_Evaluation-5}
 library(yardstick)
 
 conf_mat(test_std_scored, purchased, glm_std)
 sens(test_std_scored, purchased, glm_syn)
 ```
 
-```{r}
+```{r 06_Evaluation-6}
 test_std_scored %>% 
   gather(model, pred, -(purchased:never_opened)) ->
   test_std_scored_long
@@ -154,14 +154,14 @@ test_std_scored_long %>%
   ggthemes::theme_fivethirtyeight()
 ```
 
-```{r}
+```{r 06_Evaluation-7}
 test_std_scored_long %>% 
   count(model, purchased, pred) %>% 
   group_by(model) %>% 
   mutate(prop=n/sum(n)) 
 ```
 
-```{r}
+```{r 06_Evaluation-8}
 basic_trees$`Upsampled & Standardised`
 
 ```
